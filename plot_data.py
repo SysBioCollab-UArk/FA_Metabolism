@@ -152,7 +152,7 @@ def plot_seahorse_data(datafile, expt_ids='all', datatype='all', scale_to_first_
     if save_plot is not False:
         outdir = '.' if save_plot is True else save_plot
         suffix = kwargs.get('suffix', None)
-        filename = 'Seahorse_plots%s.png' % '_' + suffix if suffix is not None else ''
+        filename = 'Seahorse_plots%s.png' % ('_' + suffix if suffix is not None else '')
         fig.savefig(os.path.join(outdir, filename), dpi=300)
 
     if show_plot:
