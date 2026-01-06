@@ -30,7 +30,23 @@ def plot_atp_rate_assay_data(ax, atp_df, data_info):
 
 
 def plot_seahorse_data(datafile, expt_ids='all', datatype='all', scale_to_first_point=False, save_plot=True,
-                       show_plot=False, **kwargs):
+                       show_plot=False, squeeze_plots=False, **kwargs):
+
+    # process kwargs
+    figsize_adjust = kwargs.get('figsize_adjust', (1, 1))
+    xlim = kwargs.get('xlim', (None, None))
+    ylim = kwargs.get('ylim', (None, None))
+    title_type = kwargs.get('title', 'line_mut_type')
+    title_kw = kwargs.get('title_kw', {})
+    suffix = kwargs.get('suffix', None)
+    suptitle = kwargs.get('suptitle', None)
+
+    fontsizes = kwargs.get('fontsizes', {})
+    fs_labels = fontsizes.get('labels', None)
+    fs_ticks = fontsizes.get('ticks', None)
+    fs_legend = fontsizes.get('legend', None)
+    fs_title = fontsizes.get('title', None)
+    fs_suptitle = fontsizes.get('suptitle', None)
 
     preferred_fig_order = ['OCR', 'ECAR', 'PER', 'ATP']
 
@@ -42,21 +58,34 @@ def plot_seahorse_data(datafile, expt_ids='all', datatype='all', scale_to_first_
         expt_ids = [expt_ids]
     print(expt_ids)
 
+    # only keep data for specified expt IDs
+    all_data = all_data[all_data['Expt_ID'].isin(expt_ids)]
+
     if datatype != 'all':
         if isinstance(datatype, str):
             datatype = [datatype]
         all_data = all_data[all_data['Signal_Type'].isin(datatype)]
     print(all_data.columns)
 
-    # get number of rows and columns for figure
-    nrows = len(expt_ids)  # put plots for each expt on a separate row
+    # get signal types and numbers of plots per signal type
     sig_types = all_data['Signal_Type'].unique()
+    sig_types_dict = dict(
+        zip(
+            sig_types,
+            [all_data[all_data['Signal_Type'] == sig_type]['Expt_ID'].nunique() for sig_type in sig_types]
+        )
+    )
+    sig_types_dict['ATP'] = (sig_types_dict.get('mitoATP', 0) + sig_types_dict.get('glycoATP', 0)) // 2
+
     # replace 'mitoATP' and 'glycoATP' with 'ATP'
     for i in range(len(sig_types)):
         if re.search(r'ATP$', sig_types[i]):
             sig_types[i] = 'ATP'
     sig_types = list(set(sig_types))  # remove duplicates
+
+    # one column per signal type
     ncols = len(sig_types)
+
     # make sure signal types match known types
     if any(sig_type not in preferred_fig_order for sig_type in sig_types):
         raise ValueError('Unrecognized signal type detected in %s. Supported types are %s.' %
@@ -65,7 +94,16 @@ def plot_seahorse_data(datafile, expt_ids='all', datatype='all', scale_to_first_
     fig_order = sorted(sig_types, key=lambda item: preferred_fig_order.index(item))
     print(fig_order)
 
-    fig = plt.figure(constrained_layout=True, figsize=(6.4 * 0.8 * ncols, 4.8 * 0.65 * nrows))
+    # get number of rows
+    if not squeeze_plots:
+        nrows = len(expt_ids)  # default is to put plots for each expt on a separate row
+    else:
+        nrows = max([sig_types_dict[sig_type] for sig_type in sig_types])
+        for sig_type in sig_types:
+            sig_types_dict[sig_type] = nrows
+
+    fig = plt.figure(constrained_layout=True,
+                     figsize=(6.4 * 0.8 * ncols * figsize_adjust[0], 4.8 * 0.65 * nrows * figsize_adjust[1]))
 
     row = 0
     for i, expt_id in enumerate(expt_ids):
@@ -77,10 +115,13 @@ def plot_seahorse_data(datafile, expt_ids='all', datatype='all', scale_to_first_
         if len(atp_assays) > 1:
              sig_types += [atp_assays]
 
-        # col = 0
         for sig_type in sig_types:
             print('   ', sig_type)
             col = fig_order.index(sig_type[0] if len(sig_type) == 1 else 'ATP')
+
+            if squeeze_plots:
+                sig_types_dict[sig_type[0] if len(sig_type) == 1 else 'ATP'] -= 1
+                row = nrows - sig_types_dict[sig_type[0] if len(sig_type) == 1 else 'ATP'] - 1
 
             ax = fig.add_subplot(nrows, ncols, row * ncols + col + 1)
 
@@ -106,6 +147,8 @@ def plot_seahorse_data(datafile, expt_ids='all', datatype='all', scale_to_first_
             if len(sig_type) > 1:
                 plot_atp_rate_assay_data(ax, data_expt_sig, data_info)
                 ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+                if fs_ticks is not None:
+                    ax.yaxis.get_offset_text().set_fontsize(0.8 * fs_ticks)
 
             # Plot Mito and Glyco Rate Assay data
             else:
@@ -120,17 +163,16 @@ def plot_seahorse_data(datafile, expt_ids='all', datatype='all', scale_to_first_
                 ax.plot(data_expt_sig['Time'], sig_corrected, 's-', ms=10, label='Corrected')
                 ax.plot(data_expt_sig['Time'], sig_healthy, '^-', ms=10, label='Healthy')
 
-                ax.set_xlabel('Time (%s)' % data_info['time_units'], fontsize=16)
+                ax.set_xlabel('Time (%s)' % data_info['time_units'], fontsize=fs_labels)
                 ax.set_ylabel('%s (%s)' % (sig_type, data_info['sig_units']) \
-                                  if not scale_to_first_point else 'Relative %s' % sig_type, fontsize=16)
+                                  if not scale_to_first_point else 'Relative %s' % sig_type, fontsize=fs_labels)
 
-                ax.set_xlim(kwargs.get('xlim', (None, None)))
-                ax.set_ylim(kwargs.get('ylim', (None, None)))
+                ax.set_xlim(xlim)
+                ax.set_ylim(ylim)
 
             # Set the plot title. Currently supported plot title types are: 'none', 'line_mut_type', and 'expt_it'.
             # The default is 'line_mut_type'.
             extra_space = '\n' if row > 0 else ''
-            title_type = kwargs.get('title', 'line_mut_type')
             if title_type != 'none':
                 title = extra_space
                 if title_type == 'line_mut_type':
@@ -140,18 +182,18 @@ def plot_seahorse_data(datafile, expt_ids='all', datatype='all', scale_to_first_
                     title += expt_id
                 else:
                     raise ValueError('Unrecognized title type: %s' % title_type)
-                title_kw = kwargs.get('title_kw', {})
-                ax.set_title(title, fontsize=16, **title_kw)
+                ax.set_title(title, fontsize=fs_title, **title_kw)
 
-            ax.tick_params(axis='both', which='major', labelsize=16)
-            ax.legend(loc='best', fontsize=12)
+            ax.tick_params(axis='both', which='major', labelsize=fs_ticks)
+            ax.legend(loc='best', fontsize=fs_legend, frameon=False)
 
-            # col += 1
         row += 1
+
+    if suptitle is not None:
+        fig.suptitle(suptitle, fontsize=fs_suptitle, fontweight='bold')
 
     if save_plot is not False:
         outdir = '.' if save_plot is True else save_plot
-        suffix = kwargs.get('suffix', None)
         filename = 'Seahorse_plots%s.png' % ('_' + suffix if suffix is not None else '')
         fig.savefig(os.path.join(outdir, filename), dpi=300)
 
@@ -163,9 +205,25 @@ if __name__ == '__main__':
 
     data_path = '.'
     datafile = os.path.join(data_path, 'seahorse_data.csv')
-    expt_ids = 'all'  # ['PD20_050125', 'PD20_122124', 'PD20_031325', 'PD20_050125']
+
+    expt_ids = ['PD20_121625', 'PD20_121825', 'PD20_122625', 'PD20_122825']
+    suptitle = 'FANCD2-deficient (PD20)'
+
+    # expt_ids = ['PD220_112225', 'PD220_112625_r1', 'PD220_112625_r2', 'PD220_120525_r1', 'PD220_120525_r2',
+    #             'PD220_121325', 'PD220_121425']
+    # suptitle = 'FANCA-deficient (PD220)'
+    # 'all'  # ['PD20_050125', 'PD20_122124', 'PD20_031325', 'PD20_050125']
+
+    kwargs = {
+        'figsize_adjust': (1.5, 1.6),
+        'title': 'expt_id',
+        'title_kw': {'fontweight': 'normal', 'color': 'k'},
+        'xlim': (-2, 102),
+        'fontsizes': {'labels': 20, 'ticks': 20, 'legend': 16, 'title': 20, 'suptitle': 28},
+        'suptitle': suptitle
+    }
+    # title='expt_id' 'line_mut_type' 'none'
+    # ['mitoATP', 'glycoATP']
 
     plot_seahorse_data(datafile, expt_ids=expt_ids, datatype='all', scale_to_first_point=True, show_plot=True,
-                       title='expt_id', title_kw={'fontweight': 'normal', 'color': 'k'}, xlim=(-2, 102))
-    # title='expt_id' 'line_mut_type'
-    # ['mitoATP', 'glycoATP']
+                       squeeze_plots=True, **kwargs)
