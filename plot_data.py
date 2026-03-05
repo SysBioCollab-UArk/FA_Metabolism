@@ -668,10 +668,10 @@ if __name__ == '__main__':
 
     kwargs = {
         'figsize_adjust': (1.8, 2.2),
-        'title': 'none',  # 'expt_id' 'line_mut_type' 'none'
+        'title': 'expt_id',  # 'expt_id' 'line_mut_type' 'none'
         'title_kw': {'fontweight': 'normal', 'color': 'k'},
         'xlim': (-2, 102),
-        'fontsizes': {'labels': 32, 'ticks': 32, 'legend': 20, 'title': 20, 'suptitle': 40},
+        'fontsizes': {'labels': 32, 'ticks': 32, 'legend': 20, 'title': 28, 'suptitle': 40},
         'sharey': True
     }
 
@@ -679,5 +679,5 @@ if __name__ == '__main__':
     for cell_line, suptitle in zip(cell_lines, suptitles):
         expt_ids = df.loc[df['Expt_ID'].str.startswith(cell_line), 'Expt_ID'].unique().tolist()
         kwargs['suptitle'] = suptitle
-        plot_seahorse_data(datafile, expt_ids=expt_ids, datatype='all', scale_to_first_point=False, show_plot=True,
+        plot_seahorse_data(datafile, expt_ids=expt_ids, datatype='all', scale_to_first_point=True, show_plot=True,
                            squeeze_plots=True, **kwargs)
