@@ -4,6 +4,7 @@ import numpy as np
 import re
 from pathlib import Path
 import uuid
+import os
 
 
 def make_expt_id(cell_line: str, n_chars: int = 6) -> str:
@@ -652,10 +653,8 @@ def export_seahorse_atp_rate_to_csv(df: pd.DataFrame, meta: dict, out_csv: str |
 
 
 if __name__ == '__main__':
-    import os
-
     data_path = 'Excel_Data'  # '.'
-    datafile = os.path.join(data_path, 'fa_seahorse_export.csv')  # 'seahorse_data.csv')
+    datafile = os.path.join(data_path, 'seahorse_export.csv')
 
     cell_lines = ['PD20', 'PD220']
     suptitles = ['FANCD2-deficient (PD20)', 'FANCA-deficient (PD220)']

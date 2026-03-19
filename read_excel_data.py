@@ -1,88 +1,84 @@
-from plot_data import load_seahorse_excel, export_seahorse_kinetic_to_csv, export_seahorse_atp_rate_to_csv, make_expt_id
+from plot_utils import *
 import pandas as pd
 import os
 import glob
 import re
 
-base_path = 'Excel_Data'
-directories = ['PD20', 'PD220']
 
-OVERWRITE = True
+def read_excel_data(base_path, directories, cell_lines, mutations, cell_types, corrected, overwrite=False):
 
-cell_lines = ['PD20', 'PD220']
-mutations = ['FANCD2', 'FANCA']
-cell_types = ['Fibroblast', 'Fibroblast']
-corrected = ['RV', 'LV']
+    out_csv = os.path.join(base_path, "seahorse_export.csv")
+    if overwrite and os.path.exists(out_csv):
+        os.remove(out_csv)
 
-labels_dict = {
-    'PD220': 'FANCA-',
-    'PD20': 'FANCD2-',
-    'LV': 'Corrected',
-    'RV': 'Corrected'
-}
+    for directory, cell_line, mutation, cell_type, corr in zip(directories, cell_lines, mutations, cell_types, corrected):
 
-out_csv = os.path.join(base_path, "fa_seahorse_export.csv")
-if OVERWRITE and os.path.exists(out_csv):
-    os.remove(out_csv)
+        path = os.path.join(base_path, directory)
 
-for directory, cell_line, mutation, cell_type, corr in zip(directories, cell_lines, mutations, cell_types, corrected):
+        files = glob.glob(os.path.join(path, '*.xlsx'))
+        for file in files:
+            print('filename:', file)
 
-    path = os.path.join(base_path, directory)
+            df_clean, meta, extras = load_seahorse_excel(file, remove_outliers_flag=True, outlier_k=1.5) # 1.5) # 3
 
-    files = glob.glob(os.path.join(path, '*.xlsx'))
-    for file in files:
-        print('filename:', file)
+            # get date of the experiment, if it's in the assay name
+            expt_date = re.search(r'(\d+\.\d+\.\d+)', meta['Assay Name'])
+            suffix = '' if expt_date is None else str('_%s' % expt_date.group(1)).replace('.', '')
 
-        df_clean, meta, extras = load_seahorse_excel(file, remove_outliers_flag=True, outlier_k=1.5) # 1.5) # 3
+            condition_order = list(dict.fromkeys(df_clean['Condition']))
+            # Convert to an ordered categorical
+            df_clean['Condition'] = pd.Categorical(df_clean['Condition'], categories=condition_order, ordered=True)
 
-        # for key in meta.keys():
-        #     print('%s: %s' % (key, meta[key]))
-        # print(df_clean.columns)
-        # quit()
+            # Map three conditions to the mutant/corrected/control roles
+            condition_map = {"mut": cell_line, "corr": corr, "ctrl": "Healthy"}
 
-        # get date of the experiment, if it's in the assay name
-        expt_date = re.search(r'(\d+\.\d+\.\d+)', meta['Assay Name'])
-        suffix = '' if expt_date is None else str('_%s' % expt_date.group(1)).replace('.', '')
+            print('Outliers:')
+            if 'Time' in df_clean.columns:
+                if extras.get('removed', None) is not None:
+                    print(extras['removed'][['Condition', 'Time', 'Well', 'Value']])
 
-        condition_order = list(dict.fromkeys(df_clean['Condition']))
-        # Convert to an ordered categorical
-        df_clean['Condition'] = pd.Categorical(df_clean['Condition'], categories=condition_order, ordered=True)
+                # Export data to a CSV file
+                export_seahorse_kinetic_to_csv(
+                    df=df_clean,
+                    meta=meta,
+                    out_csv=out_csv,
+                    condition_map=condition_map,
+                    mutation=mutation,
+                    cell_line=cell_line,
+                    cell_type=cell_type,
+                    expt_id=make_expt_id(cell_line + suffix),
+                    write_mode='append',  # "append" or "overwrite"
+                    float_format="%.8f"
+                )
+            else:
+                if extras.get('removed', None) is not None:
+                    print(extras['removed'][['Condition', 'Component', 'Well', 'Value']])
 
-        # Map three conditions to the mutant/corrected/control roles
-        condition_map = {"mut": cell_line, "corr": corr, "ctrl": "Healthy"}
+                # Export data to a CSV file
+                export_seahorse_atp_rate_to_csv(
+                    df=df_clean,
+                    meta=meta,
+                    out_csv=out_csv,
+                    condition_map=condition_map,
+                    mutation=mutation,
+                    cell_line=cell_line,
+                    cell_type=cell_type,
+                    expt_id=make_expt_id(cell_line + suffix),
+                    write_mode='append',  # "append" or "overwrite"
+                    float_format="%.8f"
+                )
+    return out_csv
 
-        print('Outliers:')
-        if 'Time' in df_clean.columns:
-            if extras.get('removed', None) is not None:
-                print(extras['removed'][['Condition', 'Time', 'Well', 'Value']])
 
-            # Export data to a CSV file
-            exported = export_seahorse_kinetic_to_csv(
-                df=df_clean,
-                meta=meta,
-                out_csv=out_csv,
-                condition_map=condition_map,
-                mutation=mutation,
-                cell_line=cell_line,
-                cell_type=cell_type,
-                expt_id=make_expt_id(cell_line + suffix),
-                write_mode='append',  # "append" or "overwrite"
-                float_format="%.8f"
-            )
-        else:
-            if extras.get('removed', None) is not None:
-                print(extras['removed'][['Condition', 'Component', 'Well', 'Value']])
+if __name__ == '__main__':
+    base_path = 'Excel_Data'
+    directories = ['PD20', 'PD220']
 
-            # Export data to a CSV file
-            exported = export_seahorse_atp_rate_to_csv(
-                df=df_clean,
-                meta=meta,
-                out_csv=out_csv,
-                condition_map=condition_map,
-                mutation=mutation,
-                cell_line=cell_line,
-                cell_type=cell_type,
-                expt_id=make_expt_id(cell_line + suffix),
-                write_mode='append',  # "append" or "overwrite"
-                float_format="%.8f"
-            )
+    OVERWRITE = True
+
+    cell_lines = ['PD20', 'PD220']
+    mutations = ['FANCD2', 'FANCA']
+    cell_types = ['Fibroblast', 'Fibroblast']
+    corrected = ['RV', 'LV']
+
+    read_excel_data(base_path, directories, cell_lines, mutations, cell_types, corrected, overwrite=OVERWRITE)
