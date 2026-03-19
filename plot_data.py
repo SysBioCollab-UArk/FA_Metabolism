@@ -343,9 +343,9 @@ def plot_seahorse_data(datafile, expt_ids='all', datatype='all', scale_to_first_
             # Plot ATP Rate Assay data
             if len(sig_type) > 1:
                 plot_atp_rate_assay_data(ax, data_expt_sig, data_info, fs_labels=fs_labels)
-                ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
-                if fs_ticks is not None:
-                    ax.yaxis.get_offset_text().set_fontsize(0.8 * fs_ticks)
+                # ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+                # if fs_ticks is not None:
+                #     ax.yaxis.get_offset_text().set_fontsize(0.8 * fs_ticks)
 
             # Plot Mito and Glyco Rate Assay data
             else:
@@ -660,6 +660,8 @@ if __name__ == '__main__':
     cell_lines = ['PD20', 'PD220']
     suptitles = ['FANCD2-deficient (PD20)', 'FANCA-deficient (PD220)']
 
+    scale_to_first_point = True
+
     # expt_ids = ['PD20_121625', 'PD20_121825', 'PD20_122625', 'PD20_122825']
     # expt_ids = ['PD220_112225', 'PD220_112625_r1', 'PD220_112625_r2', 'PD220_120525_r1', 'PD220_120525_r2',
     #             'PD220_121325', 'PD220_121425']
@@ -668,10 +670,10 @@ if __name__ == '__main__':
 
     kwargs = {
         'figsize_adjust': (1.8, 2.2),
-        'title': 'expt_id',  # 'expt_id' 'line_mut_type' 'none'
+        'title': 'none',  # 'expt_id' 'line_mut_type' 'none'
         'title_kw': {'fontweight': 'normal', 'color': 'k'},
         'xlim': (-2, 102),
-        'fontsizes': {'labels': 32, 'ticks': 32, 'legend': 20, 'title': 28, 'suptitle': 40},
+        'fontsizes': {'labels': 30, 'ticks': 30, 'legend': 20, 'title': 30, 'suptitle': 40},
         'sharey': True
     }
 
@@ -679,5 +681,6 @@ if __name__ == '__main__':
     for cell_line, suptitle in zip(cell_lines, suptitles):
         expt_ids = df.loc[df['Expt_ID'].str.startswith(cell_line), 'Expt_ID'].unique().tolist()
         kwargs['suptitle'] = suptitle
-        plot_seahorse_data(datafile, expt_ids=expt_ids, datatype='all', scale_to_first_point=True, show_plot=True,
-                           squeeze_plots=True, **kwargs)
+        kwargs['suffix'] = '%s_%s' % (cell_line, 'RAW' if not scale_to_first_point else 'REL')
+        plot_seahorse_data(datafile, expt_ids=expt_ids, datatype='all', scale_to_first_point=scale_to_first_point,
+                           show_plot=True, squeeze_plots=True, **kwargs)
